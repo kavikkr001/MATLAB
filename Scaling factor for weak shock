@@ -1,0 +1,119 @@
+% freestream conditions
+p_inf = 4004.7;                               % freestream pressure in Pa
+T_inf = 68.3;                                   % freestream Temperature in K
+R_inf = p_inf/(287*T_inf);             % freestream density
+M1 = 5.0;                                         % freestream Mach number
+u_inf = M1*sqrt(1.4*287*T_inf);   % freestream velocity
+r = 0.9;                                              % Recovery factor
+x_L = 0.25;                                       % location for boundary layer properties
+
+% Beta calculation incident shock
+
+ % flow deflection angle
+theta_deg = double(input('Enter the flow deflecion angle in degrees : '));
+
+% convert flow deflection angle from degree to radian
+theta_rad = deg2rad(theta_deg);
+
+% Theta-Beta-M relation
+theta_beta_relation_1 = @(beta) tan(theta_rad) - 2 * cot(beta) * ...
+                                        ((M1^2 * sin(beta)^2 - 1) / (M1^2 * (1.4 + cos(2 * beta)) + 2));
+
+% initial guess to solve for beta, the initial guess is Mach angle
+beta_initial_guess_1 = asin(1 / M1);
+
+% solve for beta
+beta_rad_1 = fsolve(theta_beta_relation_1, beta_initial_guess_1);
+
+% convert beta angle from radian to degree
+beta_deg_1 = rad2deg(beta_rad_1);
+
+% normal component of incoming Mach number
+Mn1 = M1*sin(beta_rad_1);
+
+% normal component of Mach number for incident shock
+Mn2 = sqrt((2 + (0.4*Mn1^2))/((2*1.4*Mn1^2) - 0.4));
+
+% Mach number after incident shock
+M2 = Mn2/sin(beta_rad_1 - theta_rad);
+
+% pressure ratio across incident shock
+p2byp1 = ((2*1.4*Mn1^2) - 0.4)/2.4;
+
+% beta calculation for reflected shock
+
+% same procedure
+theta_beta_relation_2 = @(beta) tan(theta_rad) - 2 * cot(beta) *...
+                                        ((M2^2 * sin(beta)^2 - 1) / (M2^2 * (1.4 + cos(2 * beta)) + 2));
+beta_initial_guess_2 = asin(1 / M2);
+beta_rad_2 = fsolve(theta_beta_relation_2, beta_initial_guess_2);
+beta_deg_2 = rad2deg(beta_rad_2);
+
+Mn_2 = M2*sin(beta_rad_2);
+Mn3 = sqrt((2 + (0.4*Mn_2^2))/((2*1.4*Mn_2^2) - 0.4));
+M3 = Mn3/sin(beta_rad_2 - theta_rad);
+p3byp2 = ((2*1.4*Mn_2^2) - 0.4)/2.4;
+
+p3byp1 = (p2byp1)*(p3byp2);
+
+% wall Temperatue
+Tw = double(input('Enter the wall temperature in Kelvin : '));
+
+% Sutherland law for dynamic viscosity
+mu_inf = 1.458 * 10^(-6) * ((T_inf^(1.5))/(T_inf + 110.4)) ;
+
+% Reynolds number at x_L
+Re_x = (R_inf*u_inf*x_L)/mu_inf;
+
+% boundary layer thickness
+del = 0.23 * x_L * Re_x^(-1/6);
+
+% Reynolds number based on boundary layer thickness
+%Re_del = R_inf* v_inf * del / mu_inf;
+
+% momentum thickness
+theta_s = 0.022*((1 + (M1^2/10))^(-0.7))*x_L*Re_x^(-1/6);
+
+% displacement thickness
+del_s = 0.028*((1+(0.8*M1^2))^(0.44))*x_L*Re_x^(-1/6);
+
+% Reynolds number based on momentum thickness
+Re_theta = (R_inf*u_inf*theta_s)/mu_inf;
+
+% adjustable constant for Souverein curve fit
+if Re_theta <= 10^4
+    k_ad = 3.0;             % for Souverein curve fit
+    k_H = 2.5;              % for Harsha curve fit
+else
+    k_ad = 2.5;             % for Souverein curve fit
+    k_H = 3.0;              % for Harsha curve fit
+end
+
+% Recovery Temperature
+Tr = T_inf*(1+(r*0.2*M1^2));
+
+% T*_ad/T*
+T_abyT = (0.28 + (0.72*(1+(r*0.2*M1^2))))/...
+                 (0.28 + ((1+(r*0.2*M1^2))*(0.22 + (0.5*(Tw/Tr)))));
+
+k = k_H*((T_abyT)^(-0.67/2));
+
+p_H = (2*k*(p3byp1 - 1))/(1.4 * M1^2);  % Harsha
+
+p_S = (2*k_ad*(p3byp1 - 1))/(1.4 * M1^2);  % Souverein
+
+% L* ( Souverein curve fit )
+L_S = 1.3*(p_S^3);
+
+% L* ( Harsha curve fit )
+L_H = 1.5*(p_H^4);
+
+G3 = (sin(beta_rad_1)*sin(theta_rad))/(sin(beta_rad_1 - theta_rad));
+
+% Length of separation bubble
+LS = (L_S*del_s)/G3;  % Souverein
+
+LH = (L_H*del_s)/G3;  % Harsha
+
+fprintf('The length of separation bubble according to Souverein curfit is : %f\t m \n ', LS) 
+fprintf('The length of separation bubble according to Harsha curfit is : %f\t m \n ', LH) 
